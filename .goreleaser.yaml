@@ -1,0 +1,60 @@
+version: 2
+
+project_name: krobar
+
+before:
+  hooks:
+    - go mod download
+
+builds:
+  - id: krobar
+    main: ./cmd/krobar
+    binary: krobar
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    ldflags:
+      - -s -w
+      - -X github.com/Matthew-Beckett/krobar/internal/version.Version={{.Version}}
+      - -X github.com/Matthew-Beckett/krobar/internal/version.Commit={{.Commit}}
+      - -X github.com/Matthew-Beckett/krobar/internal/version.Date={{.Date}}
+
+archives:
+  - name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - LICENSE
+      - NOTICE
+      - README.md
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  use: git
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+release:
+  github:
+    owner: Matthew-Beckett
+    name: krobar

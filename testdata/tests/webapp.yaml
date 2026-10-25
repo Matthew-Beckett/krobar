@@ -1,0 +1,127 @@
+apiVersion: krobar.dev/v1alpha1
+kind: RGDTest
+metadata:
+  name: webapp-defaults
+spec:
+  rgd: ../webapp-rgd.yaml
+  instance:
+    apiVersion: kro.run/v1alpha1
+    kind: WebApp
+    metadata:
+      name: myapp
+      namespace: default
+    spec:
+      name: myapp
+  expect:
+    nodes:
+      deployment:
+        state: NotReady
+        count: 1
+        objects:
+          - spec:
+              replicas: 1
+              template:
+                spec:
+                  containers:
+                    - name: webapp-demo
+                      image: nginx
+      service:
+        state: Pending
+      ingress:
+        state: Ignored
+        count: 0
+---
+apiVersion: krobar.dev/v1alpha1
+kind: RGDTest
+metadata:
+  name: webapp-ready
+spec:
+  rgd: ../webapp-rgd.yaml
+  instance:
+    apiVersion: kro.run/v1alpha1
+    kind: WebApp
+    metadata:
+      name: myapp
+      namespace: default
+    spec:
+      name: myapp
+      replicas: 3
+  observed:
+    - apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: myapp
+        namespace: default
+      status:
+        availableReplicas: 3
+        conditions:
+          - type: Available
+            status: "True"
+  expect:
+    nodes:
+      deployment:
+        state: Ready
+    status:
+      availableReplicas: 3
+---
+apiVersion: krobar.dev/v1alpha1
+kind: RGDTest
+metadata:
+  name: webapp-ingress
+spec:
+  rgd: ../webapp-rgd.yaml
+  instance:
+    apiVersion: kro.run/v1alpha1
+    kind: WebApp
+    metadata:
+      name: myapp
+      namespace: default
+    spec:
+      name: myapp
+      ingress:
+        enabled: true
+  observed:
+    - apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: myapp
+        namespace: default
+      status:
+        availableReplicas: 1
+        conditions:
+          - type: Available
+            status: "True"
+    - apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: myapp
+        namespace: default
+      status:
+        loadBalancer:
+          ingress:
+            - hostname: myapp.example.com
+  expect:
+    nodes:
+      ingress:
+        state: Ready
+        count: 1
+    status:
+      url: myapp.example.com
+---
+apiVersion: krobar.dev/v1alpha1
+kind: RGDTest
+metadata:
+  name: webapp-invalid-instance
+spec:
+  rgd: ../webapp-rgd.yaml
+  instance:
+    apiVersion: kro.run/v1alpha1
+    kind: WebApp
+    metadata:
+      name: myapp
+      namespace: default
+    spec:
+      name: myapp
+      replicas: three
+  expect:
+    error: instance is invalid

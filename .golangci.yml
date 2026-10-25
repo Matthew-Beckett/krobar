@@ -1,0 +1,36 @@
+version: "2"
+
+run:
+  go: "1.26"
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - errorlint
+    - gocritic
+    - gosec
+    - govet
+    - misspell
+    - revive
+    - staticcheck
+    - unparam
+  settings:
+    revive:
+      rules:
+        - name: exported
+          arguments:
+            - checkPublicInterface
+            - disableStutteringCheck
+
+formatters:
+  enable:
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/Matthew-Beckett/krobar
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

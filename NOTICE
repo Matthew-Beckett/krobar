@@ -1,0 +1,12 @@
+krobar
+Copyright 2026 The Krobar Authors.
+
+This product includes software developed by the Kro maintainers (https://github.com/kubernetes-sigs/kro)
+All code from Kro is copyrighted by Kubernetes and licensed under the Apache License, Version 2.0. 
+Files under internal/emulator and files derived from upstream cmd/kro sources retain the original copyright
+header and are marked "Modified for krobar".
+
+The bundled Kubernetes OpenAPI document
+(internal/offline/schemas/v1.36.0.json) is derived from the Kubernetes
+project (https://github.com/kubernetes/kubernetes), Copyrighted by the Kubernetes
+Authors, licensed under the Apache License, Version 2.0.

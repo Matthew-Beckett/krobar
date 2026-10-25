@@ -1,0 +1,7 @@
+/bin/
+/cover.out
+/dist/
+*.test
+
+junit*.xml
+report*.xml
