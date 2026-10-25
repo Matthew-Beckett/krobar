@@ -1,0 +1,7 @@
+apiVersion: kro.run/v1alpha1
+kind: WebApp
+metadata:
+  name: myapp
+  namespace: default
+spec:
+  name: myapp

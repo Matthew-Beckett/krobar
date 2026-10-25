@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package rgdtest
+package match
 
 import (
 	"testing"
@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestMatchSubset(t *testing.T) {
+func TestSubset(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
 		expected interface{}
@@ -96,7 +96,7 @@ func TestMatchSubset(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.want, MatchSubset(tc.expected, tc.got, "p"))
+			assert.Equal(t, tc.want, Subset(tc.expected, tc.got, "p"))
 		})
 	}
 }

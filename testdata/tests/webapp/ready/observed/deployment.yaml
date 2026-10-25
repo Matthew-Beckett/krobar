@@ -1,0 +1,10 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myapp
+  namespace: default
+status:
+  availableReplicas: 3
+  conditions:
+    - type: Available
+      status: "True"

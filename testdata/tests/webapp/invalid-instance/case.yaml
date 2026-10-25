@@ -1,0 +1,9 @@
+apiVersion: krobar.dev/v1alpha1
+kind: TestCase
+spec:
+  instancePatch:
+    spec:
+      replicas: three
+  expect:
+    error:
+      contains: instance is invalid

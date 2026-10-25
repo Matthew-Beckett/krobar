@@ -1,0 +1,14 @@
+apiVersion: krobar.dev/v1alpha1
+kind: TestCase
+spec:
+  instancePatch:
+    spec:
+      ingress:
+        enabled: true
+  expect:
+    nodes:
+      ingress:
+        state: Ready
+        count: 1
+    status:
+      url: myapp.example.com

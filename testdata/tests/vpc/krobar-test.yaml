@@ -1,0 +1,10 @@
+apiVersion: krobar.dev/v1alpha1
+kind: TestSuite
+metadata:
+  name: vpc
+spec:
+  rgd: ../../vpc-rgd.yaml
+  crds:
+    - ../../crds
+  snapshot:
+    mode: partial

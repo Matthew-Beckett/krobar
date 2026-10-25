@@ -1,0 +1,8 @@
+apiVersion: krobar.dev/v1alpha1
+kind: TestSuite
+metadata:
+  name: webapp
+spec:
+  rgd: ../../webapp-rgd.yaml
+  snapshot:
+    mode: partial

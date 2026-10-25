@@ -1,0 +1,3 @@
+deployment: NotReady
+ingress: Ignored
+service: Pending

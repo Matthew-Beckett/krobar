@@ -1,0 +1,21 @@
+apiVersion: krobar.dev/v1alpha1
+kind: TestCase
+spec:
+  expect:
+    nodes:
+      deployment:
+        state: NotReady
+        count: 1
+        objects:
+          - spec:
+              replicas: 1
+              template:
+                spec:
+                  containers:
+                    - name: webapp-demo
+                      image: nginx
+      service:
+        state: Pending
+      ingress:
+        state: Ignored
+        count: 0

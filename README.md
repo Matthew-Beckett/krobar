@@ -120,46 +120,190 @@ controller-observed conditions beyond what `pkg/runtime` computes.
 
 ### Fixture tests (`krobar test`)
 
-`krobar test [PATH...]` recursively scans YAML files for documents of kind
-`RGDTest` (apiVersion `krobar.dev/v1alpha1`; everything else is ignored) and
-executes each as a render-and-assert test:
+`krobar test [PATH...]` discovers *test suites* under the given paths
+(default `.`) and runs their cases. A suite is either:
+
+- **explicit**: a directory containing a `krobar-test.yaml` manifest
+  (`kind: TestSuite`, apiVersion `krobar.dev/v1alpha1`), or
+- **implicit**: a directory with a `tests/` subdirectory and exactly one
+  top-level YAML file whose kind is `ResourceGraphDefinition`; the suite
+  root is `tests/`, the RGD is that file, and a sibling `crds/` directory
+  is picked up automatically.
+
+Suites are never nested inside other suites. A path argument may also be a
+manifest file directly.
 
 ```yaml
+# krobar-test.yaml
 apiVersion: krobar.dev/v1alpha1
-kind: RGDTest
+kind: TestSuite
 metadata:
-  name: webapp-defaults
+  name: webapp             # defaults to the directory name
+  labels: {team: a}
 spec:
-  rgd: ./webapp-rgd.yaml            # required, relative to the test file
-  crds: [./crds]                    # optional, relative; merged with --crds
-  instance: {...}                   # inline object — XOR instanceFile
+  rgd: ../webapp-rgd.yaml  # required, relative to the suite root
+  crds: [../crds]          # optional, relative; merged with --crds
+  cases: ["smoke-*"]       # optional globs over suite-root entry names
+  instance: {...}          # default instance (XOR instanceFile)
   instanceFile: ./instance.yaml
-  observed: [ {k8s object}, ... ]   # optional, same as render --observed
-  expect:
-    error: "substring"              # build/validate/render must fail like this
-    nodes:
-      <nodeID>:
-        state: Ready                # Ready | NotReady | Pending | Ignored
-        count: 1                    # number of rendered objects
-        objects:                    # element i subset-matched vs object i
-          - spec: {replicas: 3}
-    status: {...}                   # subset match on instance .status
+  snapshot:                # optional snapshot comparison settings
+    mode: strict           # strict | partial | off (default strict)
+    ignore: [metadata.annotations]  # field paths stripped before comparing
 ```
 
-Expectations are subset matches (expected keys must exist and match
-recursively; lists compare element-wise; numbers normalise int/float).
-Mismatch messages carry field paths, e.g.
-`nodes.deployment.objects[0].spec.replicas: expected 3, got 1`. The spec is
-strict-decoded: unknown fields fail loudly. Flags: `--run REGEX` (name
-filter), `--junit FILE` (JUnit XML report, one testsuite per file), plus the
-graph flags. Output is go-test style; exit 1 on any failure or when no tests
-are found.
+A suite-level `instance.yaml` and `observed/` directory in the suite root
+are also picked up as defaults. Instance ambiguity at one level (e.g.
+`spec.instance` and `instance.yaml` both present) is a fixture error.
+
+Cases live in the suite root:
+
+- each subdirectory containing `case.yaml`, `instance.yaml`, or
+  `observed/` is a case named after the directory (a `case.yaml` may
+  override via `metadata.name`);
+- each other `*.yaml`/`*.yml` file (excluding `krobar-test.yaml` and
+  `instance.yaml`) may hold one or more `TestCase` documents;
+  `metadata.name` is required there.
+
+A top-level `observed/` directory is suite input, never a case; the same
+holds for a top-level `expected/` directory.
+
+```yaml
+# <case>/case.yaml
+apiVersion: krobar.dev/v1alpha1
+kind: TestCase
+spec:
+  skip: "reason"             # mark the case skipped
+  instance: {...}            # override the suite instance (XOR instanceFile)
+  instanceFile: ./inst.yaml  # relative to the case file's directory
+  instancePatch: {...}       # RFC 7386 merge patch over the base instance
+  observed: [{k8s object}]   # inline observed objects
+  expect:
+    error:                   # build/validate/render must fail
+      contains: "substring"  # and/or regex; both must hold when both set
+      regex: "..."
+    nodes:
+      <nodeID>:
+        state: Ready         # Ready | NotReady | Pending | Ignored
+        count: 1             # number of rendered objects
+        objects:             # element i subset-matched vs object i
+          - spec: {replicas: 3}
+    status: {...}            # subset match on instance .status
+    unmatchedObserved: 0     # observed objects that matched no node
+  assert:                    # richer assertions (see below)
+    - name: replicas-ok
+      node: deployment
+      cel: self.spec.replicas == instance.spec.replicas
+  snapshot: "off"            # or a snapshot directory path (see below)
+```
+
+`assert` entries run after `expect`. Each needs at least one of `state`,
+`count`, `match`, `equals`, `absent`, `cel`:
+
+```yaml
+- name: container-check      # optional; failures print as assert "container-check":
+  node: deployment           # subject node; omit to check the instance object
+  index: 0                   # pick object 0 (XOR select, each)
+  select: {kind: Deployment, name: myapp}   # pick the unique matching object
+  each: true                 # or apply to every object
+  path: spec.template.spec.containers[0]    # narrow the subject first
+  state: Ready               # node state (requires node)
+  count: 1                   # object count (requires node)
+  match: {spec: {replicas: 3}}              # subset match
+  equals: {...}              # exact match (no extra keys; YAML diff on failure)
+  absent: [metadata.annotations]            # paths that must not exist
+  cel: self.spec.replicas > 0               # CEL expression over the subject
+```
+
+Subjects resolve as: `index` by position, `select` by
+name/namespace/kind, `each` per object, or the single object of the node
+(exactly one required). `path` uses field selectors
+(`a.b[0]`, `metadata.labels["app.kubernetes.io/name"]`) to narrow the
+subject before `match`/`equals`/`absent`/`cel`.
+
+CEL sees `self` (the subject), `instance` (the whole instance), `status`
+(the computed `.status`), `nodes` (id to `{state, reason, objects}`) and
+`vars` (empty). Numeric comparisons are cross-type: YAML-decoded floats
+and rendered integers compare equal.
+
+Inside `match` and `equals`, a map whose keys are all `$`-prefixed is an
+operator map (`$$` escapes a literal `$` key; operators and plain keys
+cannot mix):
+
+| Operator | Meaning |
+|----------|---------|
+| `$regex: <str>` | string matches RE2 pattern (unanchored) |
+| `$any: true` | key exists, any value |
+| `$absent: true` | key must not exist (map values only) |
+| `$len: <int>` | list/map/string has this length |
+| `$contains: [...]` | each element subset-matches a distinct list element |
+| `$not: <expected>` | the inner expected value must not match |
+| `$cel: <expr>` | CEL expression with `self` bound to the value |
+
+### Snapshots
+
+After `expect` and `assert`, each case can compare the rendered result
+against snapshot files. Directory cases use `<case>/expected/`; a case
+may instead point `spec.snapshot` at another directory relative to the
+case file, or set `snapshot: "off"`. Standalone-file cases have no
+conventional directory and opt in with `spec.snapshot: <dir>` only.
+
+The snapshot directory holds:
+
+- `<nodeID>.yaml`: the node's rendered objects as a multi-document YAML
+  stream, in render order. Node IDs usable in file names are limited to
+  `[A-Za-z0-9-._]` and cannot start with `_`.
+- `_states.yaml`: a map of every node ID to its state.
+- `_status.yaml`: the instance's computed `.status` (written only when
+  non-empty).
+
+Comparison semantics come from the suite's `spec.snapshot.mode`
+(default `strict`):
+
+- `strict`: the directory must exist, every node that rendered objects
+  needs a file, `_states.yaml` must cover every result node, and a
+  non-empty computed status needs `_status.yaml`. Files for nodes absent
+  from the result, and unknown `_states.yaml` entries, are failures.
+- `partial`: only files present on disk are compared; missing files and
+  directories are skipped.
+- `off`: no comparison.
+
+Object documents and `.status` compare with exact-match semantics and a
+unified diff on mismatch; `$`-operators are not allowed inside snapshot
+files. Paths listed in the suite's `spec.snapshot.ignore` are deleted
+from rendered objects and `.status` before comparing (and before
+writing), which keeps volatile fields such as generated annotations out
+of the snapshots.
+
+`krobar test -u` (`--update-snapshots`) rewrites each case's snapshot
+directory from the actual result instead of comparing: node files are
+written for every rendered node, `_states.yaml` always, `_status.yaml`
+when the status is non-empty, and every other `*.yaml`/`*.yml` file in
+the directory is removed. Cases that are skipped, filtered out, fixture
+errors, or expecting `expect.error` are never touched. `expect` and
+`assert` still run, so a case can fail while its snapshots refresh.
+
+The instance resolves case-first: case `instance`/`instanceFile`/
+`<case>/instance.yaml`, else the suite default. Observed objects merge
+from `<root>/observed/`, `<case>/observed/`, and inline `observed`, keyed
+by apiVersion/kind/namespace/name; later sources replace earlier objects
+whole. Expectations are subset matches (expected keys must exist and match
+recursively; lists compare element-wise; numbers normalise int/float) with
+field paths in mismatch messages. Documents are strict-decoded: unknown
+fields fail loudly.
+
+Flags: `--run REGEX` (matched against `suite/case` paths), `--junit FILE`
+(JUnit XML report), `-u`/`--update-snapshots` (rewrite snapshot files),
+plus the graph flags. Output is go-test style; the
+suite's graph is built once and shared by its cases. Exit is non-zero on
+any failure, when no tests are found, or when `--run` matches nothing. The
+old single-file `RGDTest` kind was removed: convert fixtures to TestSuite
+directories.
 
 ```sh
 krobar test ./rgds --junit report.xml   # CI usage
 ```
 
-Example fixtures live under `testdata/tests/`.
+Example suites live under `testdata/tests/`.
 
 ### Offline schema resolution
 
@@ -215,6 +359,9 @@ errors), OpenAPI schema validation, and CEL `x-kubernetes-validations`.
   `krobar ... > file` and test capture behave correctly.
 - Extra commands: `validate instance`, `validate compat`, `fmt`, `render`,
   `test`.
+- `krobar test` goes beyond KREP-021 (which only mentions fixture files):
+  it runs directory-based suites with case discovery, instance patches,
+  observed-object merging, skip/filter semantics, and JUnit output.
 
 ## Development
 

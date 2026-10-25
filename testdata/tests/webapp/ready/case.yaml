@@ -1,0 +1,12 @@
+apiVersion: krobar.dev/v1alpha1
+kind: TestCase
+spec:
+  instancePatch:
+    spec:
+      replicas: 3
+  expect:
+    nodes:
+      deployment:
+        state: Ready
+    status:
+      availableReplicas: 3

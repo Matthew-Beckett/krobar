@@ -1,0 +1,8 @@
+apiVersion: kro.run/v1alpha1
+kind: Vpc
+metadata:
+  name: myvpc
+  namespace: default
+spec:
+  name: myvpc
+  region: eu-west-1
