@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	github.com/go-echarts/go-echarts/v2 v2.7.3
-	github.com/google/cel-go v0.31.0
+	github.com/google/cel-go v0.32.0
 	github.com/kubernetes-sigs/kro v0.9.3
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2
 	github.com/spf13/cobra v1.10.2
