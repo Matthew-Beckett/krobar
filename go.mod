@@ -14,7 +14,7 @@ require (
 	k8s.io/apiextensions-apiserver v0.36.3
 	k8s.io/apimachinery v0.36.3
 	k8s.io/apiserver v0.36.3
-	k8s.io/client-go v0.36.3
+	k8s.io/client-go v11.0.0+incompatible
 	k8s.io/kube-openapi v0.0.0-20261104182252-5bee61fc5225
 	sigs.k8s.io/yaml v1.6.0
 )
